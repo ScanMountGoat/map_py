@@ -415,21 +415,3 @@ where
         Ok(self.map(|i| i.map_py(py).unwrap()))
     }
 }
-
-// TODO: Suport in derive instead.
-#[macro_export]
-macro_rules! map_py_wrapper_impl {
-    ($rs:ty, $py:path) => {
-        impl ::map_py::MapPy<$rs> for $py {
-            fn map_py(self, _py: pyo3::Python) -> pyo3::PyResult<$rs> {
-                Ok(self.0)
-            }
-        }
-
-        impl ::map_py::MapPy<$py> for $rs {
-            fn map_py(self, _py: pyo3::Python) -> pyo3::PyResult<$py> {
-                Ok($py(self))
-            }
-        }
-    };
-}

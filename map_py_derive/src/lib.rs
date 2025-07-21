@@ -22,45 +22,61 @@ pub fn map_py_derive(input: TokenStream) -> TokenStream {
 
     // Assume both structs have identical field names.
     // This could be improved via skip and rename attributes in the future.
-    let map_python_fields: Vec<_> = match &input.data {
-        Data::Struct(DataStruct {
-            fields: Fields::Named(fields),
-            ..
-        }) => fields
-            .named
-            .iter()
-            .map(|field| {
-                let name = field.ident.as_ref().unwrap();
-                let options = FieldOptions::new(field);
+    let map_python = match &input.data {
+        Data::Struct(DataStruct { fields, .. }) => match fields {
+            Fields::Named(named) => {
+                let map_fields: Vec<_> = named
+                    .named
+                    .iter()
+                    .map(|field| {
+                        let name = field.ident.as_ref().unwrap();
+                        let options = FieldOptions::new(field);
 
-                if let Some(map_from) = options.map_from {
-                    quote!(#name: (#map_from)(self.#name, py)?)
-                } else {
-                    quote!(#name: self.#name.map_py(py)?)
-                }
-            })
-            .collect(),
+                        if let Some(map_from) = options.map_from {
+                            quote!(#name: (#map_from)(self.#name, py)?)
+                        } else {
+                            quote!(#name: self.#name.map_py(py)?)
+                        }
+                    })
+                    .collect();
+
+                quote! {#name { #(#map_fields),* }}
+            }
+            Fields::Unnamed(_unnamed) => {
+                // TODO: Error if not single field?
+                quote!(#name(self))
+            }
+            Fields::Unit => panic!("Unsupported unit type"),
+        },
         _ => panic!("Unsupported type"),
     };
 
-    let map_rust_fields: Vec<_> = match &input.data {
-        Data::Struct(DataStruct {
-            fields: Fields::Named(fields),
-            ..
-        }) => fields
-            .named
-            .iter()
-            .map(|field| {
-                let name = field.ident.as_ref().unwrap();
-                let options = FieldOptions::new(field);
+    let map_rust = match &input.data {
+        Data::Struct(DataStruct { fields, .. }) => match fields {
+            Fields::Named(named) => {
+                let map_fields: Vec<_> = named
+                    .named
+                    .iter()
+                    .map(|field| {
+                        let name = field.ident.as_ref().unwrap();
+                        let options = FieldOptions::new(field);
 
-                if let Some(map_into) = options.map_into {
-                    quote!(#name: (#map_into)(self.#name, py)?)
-                } else {
-                    quote!(#name: self.#name.map_py(py)?)
-                }
-            })
-            .collect(),
+                        if let Some(map_into) = options.map_into {
+                            quote!(#name: (#map_into)(self.#name, py)?)
+                        } else {
+                            quote!(#name: self.#name.map_py(py)?)
+                        }
+                    })
+                    .collect();
+
+                quote! {#map_type { #(#map_fields),* }}
+            }
+            Fields::Unnamed(_unnamed) => {
+                // TODO: Error if not single field?
+                quote!(self.0)
+            }
+            Fields::Unit => panic!("Unsupported unit type"),
+        },
         _ => panic!("Unsupported type"),
     };
 
@@ -68,22 +84,14 @@ pub fn map_py_derive(input: TokenStream) -> TokenStream {
         // Map from the implementing type to the map type.
         impl ::map_py::MapPy<#map_type> for #name {
             fn map_py(self, py: pyo3::Python) -> pyo3::prelude::PyResult<#map_type> {
-                Ok(
-                    #map_type {
-                        #(#map_rust_fields),*
-                    }
-                )
+                Ok(#map_rust)
             }
         }
 
         // Map from the map type to the implementing type.
         impl ::map_py::MapPy<#name> for #map_type {
             fn map_py(self, py: pyo3::Python) -> pyo3::prelude::PyResult<#name> {
-                Ok(
-                    #name {
-                        #(#map_python_fields),*
-                    }
-                )
+                Ok(#map_python)
             }
         }
     }
