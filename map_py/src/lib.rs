@@ -95,8 +95,9 @@ macro_rules! map_py_into_impl {
         }
     };
 }
-
+map_py_into_impl!(Vec2, [f32; 2]);
 map_py_into_impl!(Vec3, [f32; 3]);
+map_py_into_impl!(Vec4, [f32; 4]);
 
 impl MapPy<Quat> for [f32; 4] {
     fn map_py(self, _py: Python) -> PyResult<Quat> {
