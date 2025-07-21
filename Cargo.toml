@@ -1,0 +1,3 @@
+[workspace]
+members = ["map_py", "map_py_derive"]
+resolver = "3"
