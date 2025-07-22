@@ -331,8 +331,9 @@ map_py_vecn_ndarray_impl!(Quat, 4);
 
 impl MapPy<Py<PyArray2<f32>>> for Mat4 {
     fn map_py(self, py: Python) -> PyResult<Py<PyArray2<f32>>> {
-        // TODO: Should this be transposed since numpy is row-major?
+        // Transpose since numpy is row-major.
         Ok(self
+            .transpose()
             .to_cols_array()
             .to_pyarray(py)
             .readwrite()
@@ -344,10 +345,9 @@ impl MapPy<Py<PyArray2<f32>>> for Mat4 {
 
 impl MapPy<Mat4> for Py<PyArray2<f32>> {
     fn map_py(self, py: Python) -> PyResult<Mat4> {
+        // Transpose since numpy is row-major.
         let array = self.as_any().downcast_bound::<PyArray2<f32>>(py)?;
-        Ok(Mat4::from_cols_slice(
-            array.readonly().as_array().as_slice().unwrap(),
-        ))
+        Ok(Mat4::from_cols_slice(array.readonly().as_array().as_slice().unwrap()).transpose())
     }
 }
 
@@ -370,12 +370,12 @@ impl MapPy<Py<PyArray2<f32>>> for [[f32; 4]; 4] {
 impl MapPy<Py<PyArray3<f32>>> for Vec<Mat4> {
     fn map_py(self, py: Python) -> PyResult<Py<PyArray3<f32>>> {
         // This flatten will be optimized in Release mode.
-        // This avoids needing unsafe code.
+        // Transpose since numpy is row-major.
         // TODO: transpose?
         let count = self.len();
         Ok(self
             .iter()
-            .flat_map(|v| v.to_cols_array())
+            .flat_map(|v| v.transpose().to_cols_array())
             .collect::<Vec<f32>>()
             .into_pyarray(py)
             .reshape((count, 4, 4))
@@ -386,6 +386,7 @@ impl MapPy<Py<PyArray3<f32>>> for Vec<Mat4> {
 
 impl MapPy<Vec<Mat4>> for Py<PyArray3<f32>> {
     fn map_py(self, py: Python) -> PyResult<Vec<Mat4>> {
+        // Transpose since numpy is row-major.
         let array = self.as_any().downcast_bound::<PyArray3<f32>>(py)?;
         let array = array.readonly();
         let array = array.as_array();
@@ -394,7 +395,7 @@ impl MapPy<Vec<Mat4>> for Py<PyArray3<f32>> {
             .unwrap()
             .rows()
             .into_iter()
-            .map(|r| Mat4::from_cols_slice(r.as_slice().unwrap()))
+            .map(|r| Mat4::from_cols_slice(r.as_slice().unwrap()).transpose())
             .collect())
     }
 }
