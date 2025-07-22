@@ -26,6 +26,15 @@ pub struct TypedList<T> {
     _phantom: PhantomData<T>,
 }
 
+impl<T> TypedList<T> {
+    pub fn empty(py: Python) -> Self {
+        Self {
+            list: PyList::empty(py).into(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
 impl<'py, T> IntoPyObject<'py> for TypedList<T> {
     type Target = PyList;
     type Output = Bound<'py, Self::Target>;
@@ -193,7 +202,7 @@ macro_rules! map_py_pyobject_ndarray_impl {
     }
 }
 
-map_py_pyobject_ndarray_impl!(u8, u16, u32, f32);
+map_py_pyobject_ndarray_impl!(u8, u16, u32, u64, i8, i16, i32, i64, f32);
 
 impl<T, U> MapPy<Option<U>> for Option<T>
 where
@@ -342,6 +351,22 @@ impl MapPy<Mat4> for Py<PyArray2<f32>> {
     }
 }
 
+impl MapPy<[[f32; 4]; 4]> for Py<PyArray2<f32>> {
+    fn map_py(self, py: Python) -> PyResult<[[f32; 4]; 4]> {
+        self.extract::<[[f32; 4]; 4]>(py)
+    }
+}
+
+impl MapPy<Py<PyArray2<f32>>> for [[f32; 4]; 4] {
+    fn map_py(self, py: Python) -> PyResult<Py<PyArray2<f32>>> {
+        Ok(self
+            .as_flattened()
+            .to_pyarray(py)
+            .reshape((4, 4))
+            .unwrap()
+            .into())
+    }
+}
 impl MapPy<Py<PyArray3<f32>>> for Vec<Mat4> {
     fn map_py(self, py: Python) -> PyResult<Py<PyArray3<f32>>> {
         // This flatten will be optimized in Release mode.
