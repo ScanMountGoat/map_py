@@ -8,7 +8,10 @@ use pyo3::{
 use smol_str::SmolStr;
 
 pub use map_py_derive::MapPy;
-use std::marker::PhantomData;
+use std::{
+    collections::{BTreeMap, HashMap},
+    marker::PhantomData,
+};
 
 pub mod helpers;
 
@@ -19,7 +22,7 @@ pub trait MapPy<T> {
     fn map_py(self, py: Python) -> PyResult<T>;
 }
 
-/// An untyped Python list assumed to have elements of a single type.
+/// A statically typed [Vec] represented as un untyped Python list.
 #[derive(Debug, Clone)]
 pub struct TypedList<T> {
     pub list: Py<PyList>,
@@ -49,6 +52,41 @@ impl<'py, T> FromPyObject<'py> for TypedList<T> {
     fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
         Ok(Self {
             list: ob.extract()?,
+            _phantom: PhantomData,
+        })
+    }
+}
+
+/// A statically typed [BTreeMap], [HashMap], or [IndexMap] represented as un untyped Python list.
+#[derive(Debug, Clone)]
+pub struct TypedDict<K, V> {
+    pub dict: Py<PyDict>,
+    _phantom: PhantomData<(K, V)>,
+}
+
+impl<K, V> TypedDict<K, V> {
+    pub fn empty(py: Python) -> Self {
+        Self {
+            dict: PyDict::new(py).into(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<'py, K, V> IntoPyObject<'py> for TypedDict<K, V> {
+    type Target = PyDict;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        Ok(self.dict.into_bound(py))
+    }
+}
+
+impl<'py, K, V> FromPyObject<'py> for TypedDict<K, V> {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        Ok(Self {
+            dict: ob.extract()?,
             _phantom: PhantomData,
         })
     }
@@ -276,6 +314,132 @@ where
     }
 }
 
+impl<K, V, K2, V2> MapPy<BTreeMap<K2, V2>> for TypedDict<K, V>
+where
+    K: MapPy<K2>,
+    V: MapPy<V2>,
+    for<'a> BTreeMap<K, V>: FromPyObject<'a>,
+    K2: Ord + Eq,
+{
+    fn map_py(self, py: Python) -> PyResult<BTreeMap<K2, V2>> {
+        self.dict
+            .extract::<BTreeMap<K, V>>(py)?
+            .into_iter()
+            .map(|(k, v)| {
+                let k2 = k.map_py(py)?;
+                let v2 = v.map_py(py)?;
+                Ok((k2, v2))
+            })
+            .collect()
+    }
+}
+
+impl<K, V, K2, V2> MapPy<TypedDict<K2, V2>> for BTreeMap<K, V>
+where
+    K: MapPy<K2>,
+    V: MapPy<V2>,
+    for<'a> K2: IntoPyObject<'a>,
+    for<'a> V2: IntoPyObject<'a>,
+{
+    fn map_py(self, py: Python) -> PyResult<TypedDict<K2, V2>> {
+        let dict = PyDict::new(py);
+        for (k, v) in self.into_iter() {
+            let k2: K2 = k.map_py(py)?;
+            let v2: V2 = v.map_py(py)?;
+            dict.set_item(k2, v2)?;
+        }
+
+        Ok(TypedDict {
+            dict: dict.into(),
+            _phantom: PhantomData,
+        })
+    }
+}
+
+impl<K, V, K2, V2> MapPy<HashMap<K2, V2>> for TypedDict<K, V>
+where
+    K: MapPy<K2>,
+    V: MapPy<V2>,
+    for<'a> HashMap<K, V>: FromPyObject<'a>,
+    K2: std::hash::Hash + Eq,
+{
+    fn map_py(self, py: Python) -> PyResult<HashMap<K2, V2>> {
+        self.dict
+            .extract::<HashMap<K, V>>(py)?
+            .into_iter()
+            .map(|(k, v)| {
+                let k2 = k.map_py(py)?;
+                let v2 = v.map_py(py)?;
+                Ok((k2, v2))
+            })
+            .collect()
+    }
+}
+
+impl<K, V, K2, V2> MapPy<TypedDict<K2, V2>> for HashMap<K, V>
+where
+    K: MapPy<K2>,
+    V: MapPy<V2>,
+    for<'a> K2: IntoPyObject<'a>,
+    for<'a> V2: IntoPyObject<'a>,
+{
+    fn map_py(self, py: Python) -> PyResult<TypedDict<K2, V2>> {
+        let dict = PyDict::new(py);
+        for (k, v) in self.into_iter() {
+            let k2: K2 = k.map_py(py)?;
+            let v2: V2 = v.map_py(py)?;
+            dict.set_item(k2, v2)?;
+        }
+
+        Ok(TypedDict {
+            dict: dict.into(),
+            _phantom: PhantomData,
+        })
+    }
+}
+
+impl<K, V, K2, V2> MapPy<IndexMap<K2, V2>> for TypedDict<K, V>
+where
+    K: MapPy<K2>,
+    V: MapPy<V2>,
+    for<'a> IndexMap<K, V>: FromPyObject<'a>,
+    K2: std::hash::Hash + Eq,
+{
+    fn map_py(self, py: Python) -> PyResult<IndexMap<K2, V2>> {
+        self.dict
+            .extract::<IndexMap<K, V>>(py)?
+            .into_iter()
+            .map(|(k, v)| {
+                let k2 = k.map_py(py)?;
+                let v2 = v.map_py(py)?;
+                Ok((k2, v2))
+            })
+            .collect()
+    }
+}
+
+impl<K, V, K2, V2> MapPy<TypedDict<K2, V2>> for IndexMap<K, V>
+where
+    K: MapPy<K2>,
+    V: MapPy<V2>,
+    for<'a> K2: IntoPyObject<'a>,
+    for<'a> V2: IntoPyObject<'a>,
+{
+    fn map_py(self, py: Python) -> PyResult<TypedDict<K2, V2>> {
+        let dict = PyDict::new(py);
+        for (k, v) in self.into_iter() {
+            let k2: K2 = k.map_py(py)?;
+            let v2: V2 = v.map_py(py)?;
+            dict.set_item(k2, v2)?;
+        }
+
+        Ok(TypedDict {
+            dict: dict.into(),
+            _phantom: PhantomData,
+        })
+    }
+}
+
 macro_rules! map_py_vecn_ndarray_impl {
     ($t:ty,$n:expr) => {
         impl MapPy<Py<PyArray2<f32>>> for Vec<$t> {
@@ -410,25 +574,6 @@ impl MapPy<SmolStr> for String {
 impl MapPy<String> for SmolStr {
     fn map_py(self, _py: Python) -> PyResult<String> {
         Ok(self.to_string())
-    }
-}
-
-impl MapPy<Py<PyDict>> for IndexMap<SmolStr, usize> {
-    fn map_py(self, py: Python) -> PyResult<Py<PyDict>> {
-        let dict = PyDict::new(py);
-        for (k, v) in self.into_iter() {
-            dict.set_item(k.to_string(), v)?;
-        }
-        Ok(dict.into())
-    }
-}
-
-impl MapPy<IndexMap<SmolStr, usize>> for Py<PyDict> {
-    fn map_py(self, py: Python) -> PyResult<IndexMap<SmolStr, usize>> {
-        self.extract::<IndexMap<String, usize>>(py)?
-            .into_iter()
-            .map(|(k, v)| Ok((k.into(), v)))
-            .collect()
     }
 }
 
