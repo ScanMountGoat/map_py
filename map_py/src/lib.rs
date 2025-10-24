@@ -48,8 +48,10 @@ impl<'py, T> IntoPyObject<'py> for TypedList<T> {
     }
 }
 
-impl<'py, T> FromPyObject<'py> for TypedList<T> {
-    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+impl<T> FromPyObject<'_, '_> for TypedList<T> {
+    type Error = PyErr;
+
+    fn extract(ob: Borrowed<PyAny>) -> PyResult<Self> {
         Ok(Self {
             list: ob.extract()?,
             _phantom: PhantomData,
@@ -83,8 +85,10 @@ impl<'py, K, V> IntoPyObject<'py> for TypedDict<K, V> {
     }
 }
 
-impl<'py, K, V> FromPyObject<'py> for TypedDict<K, V> {
-    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+impl<K, V> FromPyObject<'_, '_> for TypedDict<K, V> {
+    type Error = PyErr;
+
+    fn extract(ob: Borrowed<PyAny>) -> PyResult<Self> {
         Ok(Self {
             dict: ob.extract()?,
             _phantom: PhantomData,
@@ -171,7 +175,7 @@ macro_rules! map_py_pyobject_ndarray_impl {
 
             impl MapPy<Vec<$t>> for Py<PyArray1<$t>> {
                 fn map_py(self, py: Python) -> PyResult<Vec<$t>> {
-                    let array = self.as_any().downcast_bound::<PyArray1<$t>>(py)?;
+                    let array = self.cast_bound::<PyArray1<$t>>(py)?;
                     Ok(array.readonly().as_slice()?.to_vec())
                 }
             }
@@ -186,7 +190,7 @@ macro_rules! map_py_pyobject_ndarray_impl {
 
             impl MapPy<Vec<$t>> for Py<PyUntypedArray> {
                 fn map_py(self, py: Python) -> PyResult<Vec<$t>> {
-                    let arr = self.bind(py).downcast::<PyArray1<$t>>()?;
+                    let arr = self.bind(py).cast::<PyArray1<$t>>()?;
                     arr.as_unbound().clone().map_py(py)
                 }
             }
@@ -211,7 +215,7 @@ macro_rules! map_py_pyobject_ndarray_impl {
 
             impl<const N: usize> MapPy<Vec<[$t; N]>> for Py<PyArray2<$t>> {
                 fn map_py(self, py: Python) -> PyResult<Vec<[$t; N]>> {
-                    let array = self.as_any().downcast_bound::<PyArray2<$t>>(py)?;
+                    let array = self.cast_bound::<PyArray2<$t>>(py)?;
                     Ok(array
                         .readonly()
                         .as_array()
@@ -232,7 +236,7 @@ macro_rules! map_py_pyobject_ndarray_impl {
 
             impl<const N: usize> MapPy<Vec<[$t; N]>> for Py<PyUntypedArray> {
                 fn map_py(self, py: Python) -> PyResult<Vec<[$t; N]>> {
-                    let arr = self.bind(py).downcast::<PyArray2<$t>>()?;
+                    let arr = self.bind(py).cast::<PyArray2<$t>>()?;
                     arr.as_unbound().clone().map_py(py)
                 }
             }
@@ -262,10 +266,12 @@ where
 
 pub fn map_list<T, U>(list: Py<PyList>, py: Python) -> PyResult<Vec<U>>
 where
-    for<'a> Vec<T>: FromPyObject<'a>,
+    for<'a, 'py> Vec<T>: FromPyObject<'a, 'py>,
     T: MapPy<U>,
 {
-    list.extract::<'_, '_, Vec<T>>(py)?.map_py(py)
+    list.extract::<'_, '_, Vec<T>>(py)
+        .map_err(Into::into)?
+        .map_py(py)
 }
 
 pub fn map_vec<T, U>(value: Vec<T>, py: Python) -> PyResult<Py<PyList>>
@@ -292,7 +298,7 @@ where
 impl<T, U> MapPy<Vec<U>> for TypedList<T>
 where
     T: MapPy<U>,
-    for<'a> Vec<T>: FromPyObject<'a>,
+    for<'a, 'py> Vec<T>: FromPyObject<'a, 'py>,
 {
     fn map_py(self, py: Python) -> PyResult<Vec<U>> {
         map_list::<T, U>(self.list, py)
@@ -318,12 +324,13 @@ impl<K, V, K2, V2> MapPy<BTreeMap<K2, V2>> for TypedDict<K, V>
 where
     K: MapPy<K2>,
     V: MapPy<V2>,
-    for<'a> BTreeMap<K, V>: FromPyObject<'a>,
+    for<'a, 'py> BTreeMap<K, V>: FromPyObject<'a, 'py>,
     K2: Ord + Eq,
 {
     fn map_py(self, py: Python) -> PyResult<BTreeMap<K2, V2>> {
         self.dict
-            .extract::<BTreeMap<K, V>>(py)?
+            .extract::<BTreeMap<K, V>>(py)
+            .map_err(Into::into)?
             .into_iter()
             .map(|(k, v)| {
                 let k2 = k.map_py(py)?;
@@ -360,12 +367,13 @@ impl<K, V, K2, V2> MapPy<HashMap<K2, V2>> for TypedDict<K, V>
 where
     K: MapPy<K2>,
     V: MapPy<V2>,
-    for<'a> HashMap<K, V>: FromPyObject<'a>,
+    for<'a, 'py> HashMap<K, V>: FromPyObject<'a, 'py>,
     K2: std::hash::Hash + Eq,
 {
     fn map_py(self, py: Python) -> PyResult<HashMap<K2, V2>> {
         self.dict
-            .extract::<HashMap<K, V>>(py)?
+            .extract::<HashMap<K, V>>(py)
+            .map_err(Into::into)?
             .into_iter()
             .map(|(k, v)| {
                 let k2 = k.map_py(py)?;
@@ -402,12 +410,13 @@ impl<K, V, K2, V2> MapPy<IndexMap<K2, V2>> for TypedDict<K, V>
 where
     K: MapPy<K2>,
     V: MapPy<V2>,
-    for<'a> IndexMap<K, V>: FromPyObject<'a>,
+    for<'a, 'py> IndexMap<K, V>: FromPyObject<'a, 'py>,
     K2: std::hash::Hash + Eq,
 {
     fn map_py(self, py: Python) -> PyResult<IndexMap<K2, V2>> {
         self.dict
-            .extract::<IndexMap<K, V>>(py)?
+            .extract::<IndexMap<K, V>>(py)
+            .map_err(Into::into)?
             .into_iter()
             .map(|(k, v)| {
                 let k2 = k.map_py(py)?;
@@ -462,7 +471,7 @@ macro_rules! map_py_vecn_ndarray_impl {
 
         impl MapPy<Vec<$t>> for Py<PyArray2<f32>> {
             fn map_py(self, py: Python) -> PyResult<Vec<$t>> {
-                let array = self.as_any().downcast_bound::<PyArray2<f32>>(py)?;
+                let array = self.cast_bound::<PyArray2<f32>>(py)?;
                 Ok(array
                     .readonly()
                     .as_array()
@@ -482,7 +491,7 @@ macro_rules! map_py_vecn_ndarray_impl {
 
         impl MapPy<Vec<$t>> for Py<PyUntypedArray> {
             fn map_py(self, py: Python) -> PyResult<Vec<$t>> {
-                let arr = self.bind(py).downcast::<PyArray2<f32>>()?;
+                let arr = self.bind(py).cast::<PyArray2<f32>>()?;
                 arr.as_unbound().clone().map_py(py)
             }
         }
@@ -510,7 +519,7 @@ impl MapPy<Py<PyArray2<f32>>> for Mat4 {
 impl MapPy<Mat4> for Py<PyArray2<f32>> {
     fn map_py(self, py: Python) -> PyResult<Mat4> {
         // Transpose since numpy is row-major.
-        let array = self.as_any().downcast_bound::<PyArray2<f32>>(py)?;
+        let array = self.cast_bound::<PyArray2<f32>>(py)?;
         Ok(Mat4::from_cols_slice(array.readonly().as_array().as_slice().unwrap()).transpose())
     }
 }
@@ -551,7 +560,7 @@ impl MapPy<Py<PyArray3<f32>>> for Vec<Mat4> {
 impl MapPy<Vec<Mat4>> for Py<PyArray3<f32>> {
     fn map_py(self, py: Python) -> PyResult<Vec<Mat4>> {
         // Transpose since numpy is row-major.
-        let array = self.as_any().downcast_bound::<PyArray3<f32>>(py)?;
+        let array = self.cast_bound::<PyArray3<f32>>(py)?;
         let array = array.readonly();
         let array = array.as_array();
         Ok(array

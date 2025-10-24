@@ -3,9 +3,10 @@ use pyo3::{PyClass, exceptions::PyTypeError, prelude::*};
 
 pub fn from_py<T, U>(value: Py<T>, py: Python) -> PyResult<U>
 where
-    T: MapPy<U> + PyClass + Clone,
+    T: MapPy<U>,
+    for<'a, 'py> T: FromPyObject<'a, 'py>,
 {
-    value.extract::<T>(py)?.map_py(py)
+    value.extract::<T>(py).map_err(Into::into)?.map_py(py)
 }
 
 pub fn into_py<T, U>(value: T, py: Python) -> PyResult<Py<U>>
@@ -19,7 +20,8 @@ where
 
 pub fn from_option_py<T, U>(value: Option<Py<T>>, py: Python) -> PyResult<Option<U>>
 where
-    T: MapPy<U> + PyClass + Clone,
+    T: MapPy<U>,
+    for<'a, 'py> T: FromPyObject<'a, 'py>,
 {
     value.map(|v| from_py(v, py)).transpose()
 }
