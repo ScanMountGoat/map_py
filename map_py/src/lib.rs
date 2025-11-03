@@ -127,6 +127,7 @@ map_py_impl!(
     f32,
     f64,
     String,
+    SmolStr,
     (u16, u16)
 );
 
