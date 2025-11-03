@@ -385,7 +385,7 @@ where
     }
 }
 
-impl<K, V, K2, V2> MapPy<TypedDict<K2, V2>> for HashMap<K, V>
+impl<K, V, K2, V2, S> MapPy<TypedDict<K2, V2>> for HashMap<K, V, S>
 where
     K: MapPy<K2>,
     V: MapPy<V2>,
@@ -407,14 +407,15 @@ where
     }
 }
 
-impl<K, V, K2, V2> MapPy<IndexMap<K2, V2>> for TypedDict<K, V>
+impl<K, V, K2, V2, S2> MapPy<IndexMap<K2, V2, S2>> for TypedDict<K, V>
 where
     K: MapPy<K2>,
     V: MapPy<V2>,
     for<'a, 'py> IndexMap<K, V>: FromPyObject<'a, 'py>,
     K2: std::hash::Hash + Eq,
+    S2: std::hash::BuildHasher + Default,
 {
-    fn map_py(self, py: Python) -> PyResult<IndexMap<K2, V2>> {
+    fn map_py(self, py: Python) -> PyResult<IndexMap<K2, V2, S2>> {
         self.dict
             .extract::<IndexMap<K, V>>(py)
             .map_err(Into::into)?
@@ -428,7 +429,7 @@ where
     }
 }
 
-impl<K, V, K2, V2> MapPy<TypedDict<K2, V2>> for IndexMap<K, V>
+impl<K, V, K2, V2, S> MapPy<TypedDict<K2, V2>> for IndexMap<K, V, S>
 where
     K: MapPy<K2>,
     V: MapPy<V2>,
