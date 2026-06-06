@@ -88,18 +88,38 @@ impl<K, V> TypedDict<K, V> {
     }
 }
 
-impl<'py, K, V> IntoPyObject<'py> for TypedDict<K, V> {
+impl<'py, K, V> IntoPyObject<'py> for TypedDict<K, V>
+where
+    K: IntoPyObject<'py>,
+    V: IntoPyObject<'py>,
+{
     type Target = PyDict;
     type Output = Bound<'py, Self::Target>;
     type Error = PyErr;
+
+    const OUTPUT_TYPE: pyo3::inspect::PyStaticExpr = type_hint_subscript!(
+        type_hint_identifier!("builtins", "dict"),
+        K::OUTPUT_TYPE,
+        V::OUTPUT_TYPE
+    );
 
     fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
         Ok(self.dict.into_bound(py))
     }
 }
 
-impl<K, V> FromPyObject<'_, '_> for TypedDict<K, V> {
+impl<'py, K, V> FromPyObject<'_, 'py> for TypedDict<K, V>
+where
+    for<'a> K: FromPyObject<'a, 'py>,
+    for<'a> V: FromPyObject<'a, 'py>,
+{
     type Error = PyErr;
+
+    const INPUT_TYPE: pyo3::inspect::PyStaticExpr = type_hint_subscript!(
+        type_hint_identifier!("builtins", "dict"),
+        K::INPUT_TYPE,
+        V::INPUT_TYPE
+    );
 
     fn extract(ob: Borrowed<PyAny>) -> PyResult<Self> {
         Ok(Self {
