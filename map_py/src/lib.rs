@@ -3,6 +3,7 @@ use indexmap::IndexMap;
 use numpy::{IntoPyArray, PyArray1, PyArray2, PyArray3, PyArrayMethods, PyUntypedArray, ToPyArray};
 use pyo3::{
     prelude::*,
+    type_hint_identifier, type_hint_subscript,
     types::{PyDict, PyList},
 };
 use smol_str::SmolStr;
@@ -38,18 +39,30 @@ impl<T> TypedList<T> {
     }
 }
 
-impl<'py, T> IntoPyObject<'py> for TypedList<T> {
+impl<'py, T> IntoPyObject<'py> for TypedList<T>
+where
+    T: IntoPyObject<'py>,
+{
     type Target = PyList;
     type Output = Bound<'py, Self::Target>;
     type Error = PyErr;
+
+    const OUTPUT_TYPE: pyo3::inspect::PyStaticExpr =
+        type_hint_subscript!(type_hint_identifier!("builtins", "list"), T::OUTPUT_TYPE);
 
     fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
         Ok(self.list.into_bound(py))
     }
 }
 
-impl<T> FromPyObject<'_, '_> for TypedList<T> {
+impl<'py, T> FromPyObject<'_, 'py> for TypedList<T>
+where
+    for<'a> T: FromPyObject<'a, 'py>,
+{
     type Error = PyErr;
+
+    const INPUT_TYPE: pyo3::inspect::PyStaticExpr =
+        type_hint_subscript!(type_hint_identifier!("builtins", "list"), T::INPUT_TYPE);
 
     fn extract(ob: Borrowed<PyAny>) -> PyResult<Self> {
         Ok(Self {
