@@ -5,9 +5,9 @@ edition = "2024"
 
 [dependencies]
 map_py_derive = { path = "../map_py_derive" }
-pyo3 = { version = "0.28.0", features = ["indexmap", "py-clone", "experimental-inspect"] }
-numpy = "0.28.0"
+pyo3 = { version = "0.29.0", features = ["indexmap", "py-clone", "experimental-inspect"] }
+numpy = "0.29.0"
 indexmap = "2.0.0"
-glam = "0.32.1"
+glam = "0.33.1"
 rayon = "1.7.0"
 smol_str = "0.3.2"
