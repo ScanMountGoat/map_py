@@ -50,3 +50,31 @@ where
         .try_into()
         .map_err(|e| PyErr::new::<PyTypeError, _>(format!("{e:?}")))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use smol_str::SmolStr;
+
+    #[test]
+    fn map_into() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert_eq!(1u32, into::<_, u32>(1u8, py).unwrap());
+            assert_eq!(SmolStr::new("abc"), into::<_, SmolStr>("abc", py).unwrap());
+        })
+    }
+
+    #[test]
+    fn map_try_into() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert_eq!(1u32, try_into::<_, u32>(1u8, py).unwrap());
+            assert_eq!(
+                SmolStr::new("abc"),
+                try_into::<_, SmolStr>("abc", py).unwrap()
+            );
+        })
+    }
+}

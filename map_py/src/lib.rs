@@ -630,3 +630,169 @@ where
         Ok(self.map(|i| i.map_py(py).unwrap()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn typed_list_pyobject() {
+        Python::initialize();
+        Python::attach(|py| {
+            let list: TypedList<u8> = py.eval(c"[]", None, None).unwrap().extract().unwrap();
+            assert_eq!("[]", list.list.to_string());
+            assert_eq!("[]", list.into_pyobject(py).unwrap().to_string());
+        });
+    }
+
+    #[test]
+    fn map_typed_list_empty() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert_eq!(
+                Vec::<u8>::new(),
+                TypedList::<u8>::empty(py).map_py(py).unwrap()
+            );
+            let list: TypedList<u8> = Vec::<u8>::new().map_py(py).unwrap();
+            assert_eq!("[]", list.list.to_string());
+        });
+    }
+
+    #[test]
+    fn map_typed_list_ints() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert_eq!(
+                vec![1, 2, 3],
+                TypedList::<u32> {
+                    list: PyList::new(py, [1, 2, 3]).unwrap().unbind(),
+                    _phantom: PhantomData
+                }
+                .map_py(py)
+                .unwrap()
+            );
+
+            let list: TypedList<u32> = vec![1, 2, 3].map_py(py).unwrap();
+            assert_eq!("[1, 2, 3]", list.list.to_string());
+        });
+    }
+
+    #[test]
+    fn typed_dict_pyobject() {
+        Python::initialize();
+        Python::attach(|py| {
+            let dict: TypedDict<String, u32> =
+                py.eval(c"{'a': 1}", None, None).unwrap().extract().unwrap();
+            assert_eq!("{'a': 1}", dict.dict.to_string());
+            assert_eq!("{'a': 1}", dict.into_pyobject(py).unwrap().to_string());
+        });
+    }
+
+    #[test]
+    fn map_typed_dict_btree_map_empty() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert_eq!(
+                BTreeMap::<String, i32>::new(),
+                TypedDict::<String, i32>::empty(py).map_py(py).unwrap()
+            );
+
+            let dict: TypedDict<String, i32> = BTreeMap::<String, i32>::new().map_py(py).unwrap();
+            assert_eq!("{}", dict.dict.to_string());
+        });
+    }
+
+    #[test]
+    fn map_typed_dict_btree_map() {
+        Python::initialize();
+        Python::attach(|py| {
+            let rust_value = BTreeMap::from([("a".to_string(), 0), ("b".to_string(), 1)]);
+            assert_eq!(
+                rust_value,
+                TypedDict::<String, i32> {
+                    dict: py
+                        .eval(c"{'a': 0, 'b': 1}", None, None)
+                        .unwrap()
+                        .extract()
+                        .unwrap(),
+                    _phantom: PhantomData
+                }
+                .map_py(py)
+                .unwrap()
+            );
+
+            let dict: TypedDict<String, i32> = rust_value.map_py(py).unwrap();
+            assert_eq!("{'a': 0, 'b': 1}", dict.dict.to_string());
+        });
+    }
+
+    #[test]
+    fn map_typed_dict_hash_map_empty() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert_eq!(
+                HashMap::<String, i32>::new(),
+                TypedDict::<String, i32>::empty(py).map_py(py).unwrap()
+            );
+
+            let dict: TypedDict<String, i32> = HashMap::<String, i32>::new().map_py(py).unwrap();
+            assert_eq!("{}", dict.dict.to_string());
+        });
+    }
+
+    #[test]
+    fn map_typed_dict_hash_map() {
+        Python::initialize();
+        Python::attach(|py| {
+            // Only use a single element to work around hashmap randomness.
+            let rust_value = HashMap::from([("a".to_string(), 0)]);
+            assert_eq!(
+                rust_value,
+                TypedDict::<String, i32> {
+                    dict: py.eval(c"{'a': 0}", None, None).unwrap().extract().unwrap(),
+                    _phantom: PhantomData
+                }
+                .map_py(py)
+                .unwrap()
+            );
+
+            let dict: TypedDict<String, i32> = rust_value.map_py(py).unwrap();
+            assert_eq!("{'a': 0}", dict.dict.to_string());
+        });
+    }
+
+    #[test]
+    fn map_typed_dict_index_map_empty() {
+        Python::initialize();
+        Python::attach(|py| {
+            let python_value = TypedDict::<String, i32>::empty(py);
+            let rust_value: IndexMap<String, i32> = python_value.map_py(py).unwrap();
+            assert_eq!(IndexMap::<String, i32>::new(), rust_value);
+
+            let dict: TypedDict<String, i32> = IndexMap::<String, i32>::new().map_py(py).unwrap();
+            assert_eq!("{}", dict.dict.to_string());
+        });
+    }
+
+    #[test]
+    fn map_typed_dict_index_map() {
+        Python::initialize();
+        Python::attach(|py| {
+            let rust_value = IndexMap::from([("a".to_string(), 0), ("b".to_string(), 1)]);
+            let actual_rust_value: IndexMap<String, i32> = TypedDict::<String, i32> {
+                dict: py
+                    .eval(c"{'a': 0, 'b': 1}", None, None)
+                    .unwrap()
+                    .extract()
+                    .unwrap(),
+                _phantom: PhantomData,
+            }
+            .map_py(py)
+            .unwrap();
+            assert_eq!(rust_value, actual_rust_value);
+
+            let dict: TypedDict<String, i32> = rust_value.map_py(py).unwrap();
+            assert_eq!(r"{'a': 0, 'b': 1}", dict.dict.to_string());
+        });
+    }
+}
