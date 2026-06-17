@@ -633,6 +633,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use glam::{quat, vec2, vec3, vec4};
+
     use super::*;
 
     #[test]
@@ -793,6 +795,78 @@ mod tests {
 
             let dict: TypedDict<String, i32> = rust_value.map_py(py).unwrap();
             assert_eq!(r"{'a': 0, 'b': 1}", dict.dict.to_string());
+        });
+    }
+
+    #[test]
+    fn map_vec2() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert_eq!(vec2(1.0, 2.0), [1.0, 2.0].map_py(py).unwrap());
+            assert_eq!([1.0, 2.0], vec2(1.0, 2.0).map_py(py).unwrap());
+        });
+    }
+
+    #[test]
+    fn map_vec3() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert_eq!(vec3(1.0, 2.0, 3.0), [1.0, 2.0, 3.0].map_py(py).unwrap());
+            assert_eq!([1.0, 2.0, 3.0], vec3(1.0, 2.0, 3.0).map_py(py).unwrap());
+        });
+    }
+
+    #[test]
+    fn map_vec4() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert_eq!(
+                vec4(1.0, 2.0, 3.0, 4.0),
+                [1.0, 2.0, 3.0, 4.0].map_py(py).unwrap()
+            );
+            assert_eq!(
+                [1.0, 2.0, 3.0, 4.0],
+                vec4(1.0, 2.0, 3.0, 4.0).map_py(py).unwrap()
+            );
+        });
+    }
+
+    #[test]
+    fn map_quat() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert_eq!(
+                quat(1.0, 2.0, 3.0, 4.0),
+                [1.0, 2.0, 3.0, 4.0].map_py(py).unwrap()
+            );
+            assert_eq!(
+                [1.0, 2.0, 3.0, 4.0],
+                quat(1.0, 2.0, 3.0, 4.0).map_py(py).unwrap()
+            );
+        });
+    }
+
+    #[test]
+    fn map_option() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert_eq!(
+                Some("abc".to_string()),
+                Some(SmolStr::new("abc")).map_py(py).unwrap()
+            );
+            assert_eq!(
+                <Option<String>>::None,
+                <Option<SmolStr>>::None.map_py(py).unwrap()
+            );
+        });
+    }
+
+    #[test]
+    fn map_array() {
+        Python::initialize();
+        Python::attach(|py| {
+            let value: [String; 2] = [SmolStr::new("a"), SmolStr::new("b")].map_py(py).unwrap();
+            assert_eq!(["a".to_string(), "b".to_string()], value);
         });
     }
 }
